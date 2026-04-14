@@ -100,31 +100,42 @@ async function processMessage(messageId: string, content: string) {
 }
 
 async function poll() {
+  console.log(`[poll] Checking for new messages... (${processed.size} already processed)`);
   try {
     const messages = await fetchRecentMessages();
+    console.log(`[poll] Fetched ${messages.length} messages`);
+    let newCount = 0;
     for (const msg of messages) {
       if (processed.has(msg.messageId)) continue;
+      newCount++;
       processed.add(msg.messageId);
+      console.log(`[poll] New message: ${msg.messageId}`);
       await processMessage(msg.messageId, msg.content);
     }
+    if (newCount === 0) console.log('[poll] No new messages');
   } catch (err) {
     console.error('[poll] Error:', err);
   }
 }
 
 // Start polling
-console.log(`Compliance bot started (polling every ${POLL_INTERVAL / 1000}s)`);
+async function start() {
+  console.log(`Compliance bot started (polling every ${POLL_INTERVAL / 1000}s)`);
 
-// First poll: mark existing messages as processed (don't act on old messages)
-fetchRecentMessages().then(messages => {
-  for (const msg of messages) {
-    processed.add(msg.messageId);
+  // First poll: mark existing messages as processed (don't act on old messages)
+  try {
+    const messages = await fetchRecentMessages();
+    for (const msg of messages) {
+      processed.add(msg.messageId);
+    }
+    console.log(`[init] Marked ${messages.length} existing messages as processed`);
+  } catch (err) {
+    console.error('[init] Error:', err);
   }
-  console.log(`[init] Marked ${messages.length} existing messages as processed`);
 
   // Start polling for new messages
   setInterval(poll, POLL_INTERVAL);
-}).catch(err => {
-  console.error('[init] Error:', err);
-  setInterval(poll, POLL_INTERVAL);
-});
+  console.log('[init] Polling started');
+}
+
+start();
