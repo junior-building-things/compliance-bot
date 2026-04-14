@@ -1,0 +1,17 @@
+[Unit]
+Description=Compliance Bot — Lark webhook for legal ticket creation
+After=network.target
+
+[Service]
+WorkingDirectory=/home/tiger/compliance-bot
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+Environment=PORT=9090
+Environment=LARK_APP_ID=
+Environment=LARK_APP_SECRET=
+Environment=LEGAL_APP_SECRET=DxzDMnWtXzVY4XdV
+Environment=DEFAULT_LIAISON_ID=7852029
+
+[Install]
+WantedBy=multi-user.target
