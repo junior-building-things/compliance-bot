@@ -8,6 +8,7 @@
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
+    "@larksuiteoapi/node-sdk": "^1.60.0",
     "express": "^5.1.0"
   },
   "devDependencies": {

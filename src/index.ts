@@ -1,14 +1,10 @@
-import express from 'express';
+import * as Lark from '@larksuiteoapi/node-sdk';
 import { sendReply, reactToMessage } from './lark.js';
 import { createComplianceTicket, getExistingTicket } from './legal.js';
 
-const app = express();
-app.use(express.json());
-
-const PORT = Number(process.env.PORT ?? 9090);
 const COMPLIANCE_CHAT_ID = 'oc_d1f9b0ad6b325ef6699e0422fa1e8541';
 
-// Deduplicate events — Lark may retry
+// Deduplicate events
 const seen = new Set<string>();
 function isDuplicate(id: string): boolean {
   if (seen.has(id)) return true;
@@ -36,29 +32,13 @@ function parseCardContent(raw: string): {
   return { featureName, priority, description, meegoUrl, prdUrl, workItemId };
 }
 
-app.post('/webhook', async (req, res) => {
-  const body = req.body as Record<string, unknown>;
-
-  // URL verification challenge
-  if (body.challenge) {
-    return res.json({ challenge: body.challenge });
-  }
-
-  // Acknowledge immediately
-  res.json({ ok: true });
-
+async function handleMessage(data: any) {
   try {
-    const header = body.header as Record<string, unknown> | undefined;
-    const eventType = header?.event_type as string | undefined;
-    if (eventType !== 'im.message.receive_v1') return;
-
-    const event = body.event as Record<string, unknown>;
-    const message = event?.message as Record<string, unknown>;
+    const message = data.message;
     const messageId = message?.message_id as string;
     const chatId = message?.chat_id as string;
     const msgType = message?.message_type as string;
 
-    // Only process messages in the compliance chat
     if (chatId !== COMPLIANCE_CHAT_ID) return;
     if (!messageId || isDuplicate(messageId)) return;
     if (msgType !== 'interactive') return;
@@ -70,7 +50,7 @@ app.post('/webhook', async (req, res) => {
       const parsed = JSON.parse(message.content as string);
       cardTitle = parsed.header?.title?.content ?? '';
       const elements = parsed.elements as Array<Record<string, unknown>> | undefined;
-      content = elements?.map((e) => String(e.content ?? '')).join('\n') ?? '';
+      content = elements?.map((e: any) => String(e.content ?? '')).join('\n') ?? '';
     } catch {
       content = String(message.content ?? '');
     }
@@ -118,12 +98,21 @@ app.post('/webhook', async (req, res) => {
   } catch (err) {
     console.error('[compliance] Error:', err);
   }
+}
+
+// Start WebSocket client
+const wsClient = new Lark.WSClient({
+  appId: process.env.LARK_APP_ID!,
+  appSecret: process.env.LARK_APP_SECRET!,
+  loggerLevel: Lark.LoggerLevel.info,
 });
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime() });
+wsClient.start({
+  eventDispatcher: new Lark.EventDispatcher({}).register({
+    'im.message.receive_v1': async (data) => {
+      await handleMessage(data);
+    },
+  }),
 });
 
-app.listen(PORT, () => {
-  console.log(`Compliance bot listening on port ${PORT}`);
-});
+console.log('Compliance bot started (WebSocket mode)');
