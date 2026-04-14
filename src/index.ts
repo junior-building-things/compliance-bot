@@ -49,14 +49,29 @@ async function fetchRecentMessages(): Promise<Array<{ messageId: string; content
 }
 
 async function processMessage(messageId: string, content: string) {
-  // Parse card header and content
+  // Parse card header and content — Lark API returns a different format than what we send
   let cardTitle = '';
   let markdown = '';
   try {
     const parsed = JSON.parse(content);
-    cardTitle = parsed.header?.title?.content ?? '';
-    const elements = parsed.elements as Array<Record<string, unknown>> | undefined;
-    markdown = elements?.map((e: any) => String(e.content ?? '')).join('\n') ?? '';
+    // Title can be at parsed.title or parsed.header.title.content
+    cardTitle = parsed.title ?? parsed.header?.title?.content ?? '';
+    // Elements can be nested arrays of {tag, text} or {tag, content}
+    const elements = parsed.elements as Array<any> | undefined;
+    if (elements) {
+      const texts: string[] = [];
+      for (const el of elements) {
+        if (typeof el.content === 'string') {
+          texts.push(el.content);
+        } else if (Array.isArray(el)) {
+          // Nested array of text elements
+          for (const sub of el) {
+            if (sub.text) texts.push(sub.text);
+          }
+        }
+      }
+      markdown = texts.join('');
+    }
   } catch {
     markdown = content;
   }
