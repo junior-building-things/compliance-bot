@@ -61,7 +61,12 @@ async function processMessage(messageId: string, content: string) {
     markdown = content;
   }
 
-  if (!cardTitle.includes('PRD Ready')) return;
+  console.log(`[process] Card title: "${cardTitle}", markdown length: ${markdown.length}`);
+
+  if (!cardTitle.includes('PRD Ready')) {
+    console.log(`[process] Skipping — not a PRD Ready card`);
+    return;
+  }
 
   const card = parseCardContent(markdown);
   if (!card.workItemId || !card.meegoUrl) {
@@ -109,7 +114,7 @@ async function poll() {
       if (processed.has(msg.messageId)) continue;
       newCount++;
       processed.add(msg.messageId);
-      console.log(`[poll] New message: ${msg.messageId}`);
+      console.log(`[poll] New message: ${msg.messageId}`, msg.content.slice(0, 200));
       await processMessage(msg.messageId, msg.content);
     }
     if (newCount === 0) console.log('[poll] No new messages');
