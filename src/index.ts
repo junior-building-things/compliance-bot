@@ -58,15 +58,17 @@ async function processMessage(messageId: string, content: string) {
     cardTitle = parsed.title ?? parsed.header?.title?.content ?? '';
     // Elements can be nested arrays of {tag, text} or {tag, content}
     const elements = parsed.elements as Array<any> | undefined;
+    // Also log raw elements for debugging
+    console.log(`[parse] Raw elements: ${JSON.stringify(parsed.elements).slice(0, 1000)}`);
     if (elements) {
       const texts: string[] = [];
       for (const el of elements) {
         if (typeof el.content === 'string') {
           texts.push(el.content);
         } else if (Array.isArray(el)) {
-          // Nested array of text elements
           for (const sub of el) {
             if (sub.text) texts.push(sub.text);
+            if (sub.href) texts.push(` ${sub.href} `);
           }
         }
       }
@@ -76,7 +78,7 @@ async function processMessage(messageId: string, content: string) {
     markdown = content;
   }
 
-  console.log(`[process] Card title: "${cardTitle}", markdown length: ${markdown.length}`);
+  console.log(`[process] Card title: "${cardTitle}", markdown: ${markdown.slice(0, 500)}`);
 
   if (!cardTitle.includes('PRD Ready')) {
     console.log(`[process] Skipping — not a PRD Ready card`);
