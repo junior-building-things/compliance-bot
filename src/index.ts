@@ -17,11 +17,12 @@ function parseCardContent(raw: string): {
   prdUrl?: string;
   workItemId?: string;
 } {
-  const featureName = raw.match(/\*\*(?:Feature|Name):\*\*\s*(.+)/)?.[1]?.trim();
-  const priority = raw.match(/\*\*Priority:\*\*\s*(P\d)/)?.[1];
-  const description = raw.match(/\*\*Description:\*\*\s*(.+)/)?.[1]?.trim();
-  const meegoUrl = raw.match(/\[(?:Open in Meego|Meego)\]\((https?:\/\/[^\)]+)\)/)?.[1];
-  const prdUrl = raw.match(/\[(?:Open PRD|PRD)\]\((https?:\/\/[^\)]+)\)/)?.[1];
+  // Support both markdown format and plain text with URLs (Lark API returns the latter)
+  const featureName = (raw.match(/\*\*(?:Feature|Name):\*\*\s*(.+)/)?.[1] ?? raw.match(/(?:Feature|Name):\s*(.+)/)?.[1])?.trim();
+  const priority = (raw.match(/\*\*Priority:\*\*\s*(P\d)/)?.[1] ?? raw.match(/Priority:\s*(P\d)/)?.[1]);
+  const description = (raw.match(/\*\*Description:\*\*\s*(.+)/)?.[1] ?? raw.match(/Description:\s*(.+)/)?.[1])?.trim();
+  const meegoUrl = raw.match(/(https?:\/\/meego\.larkoffice\.com\/[^\s\)]+)/)?.[1];
+  const prdUrl = raw.match(/(https?:\/\/bytedance\.sg\.larkoffice\.com\/[^\s\)]+)/)?.[1];
   const workItemId = meegoUrl?.match(/\/detail\/(\d+)/)?.[1];
 
   return { featureName, priority, description, meegoUrl, prdUrl, workItemId };
