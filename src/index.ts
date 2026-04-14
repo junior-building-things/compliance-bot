@@ -93,9 +93,11 @@ async function processMessage(messageId: string, content: string) {
   }
 
   console.log(`[compliance] Processing: ${card.featureName} (${card.workItemId})`);
-  await reactToMessage(messageId, 'OnIt');
+  console.log(`[compliance] Reacting...`);
+  await reactToMessage(messageId, 'OnIt').catch(e => console.error('[compliance] React failed:', e));
 
   // Check if ticket already exists
+  console.log(`[compliance] Checking existing ticket...`);
   const existing = await getExistingTicket(card.workItemId);
   if (existing.ticketUrl) {
     await sendReply(messageId, `ℹ️ Compliance ticket already exists: ${existing.ticketUrl}`);
@@ -103,7 +105,10 @@ async function processMessage(messageId: string, content: string) {
     return;
   }
 
+  console.log(`[compliance] Existing ticket check:`, JSON.stringify(existing));
+
   // Create new ticket
+  console.log(`[compliance] Creating new ticket...`);
   const result = await createComplianceTicket({
     featureName: card.featureName ?? `Feature ${card.workItemId}`,
     workItemId: card.workItemId,
