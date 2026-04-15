@@ -87,7 +87,7 @@ export async function createComplianceTicket(params: CreateTicketParams): Promis
       return {
         success: true,
         legalId: data.data.id,
-        ticketUrl: data.data.detailUrl,
+        ticketUrl: data.data.detailUrl ?? (data.data.id ? `https://legal.bytedance.com/compliance/detail?id=${data.data.id}` : undefined),
       };
     }
 
