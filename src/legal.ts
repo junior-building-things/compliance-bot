@@ -62,6 +62,7 @@ export async function createComplianceTicket(params: CreateTicketParams): Promis
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ timestamp, sign: sign(timestamp, bizParams), bizParams }).toString(),
+      signal: AbortSignal.timeout(30_000),
     });
 
     const data = (await res.json()) as {
@@ -95,6 +96,7 @@ export async function getExistingTicket(workItemId: string): Promise<ComplianceR
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ timestamp, sign: sign(timestamp, bizParams), bizParams }).toString(),
+      signal: AbortSignal.timeout(30_000),
     });
 
     const data = (await res.json()) as {
