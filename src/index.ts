@@ -118,12 +118,22 @@ async function processMessage(messageId: string, content: string) {
     priority: card.priority,
   });
 
-  if (result.success && result.ticketUrl) {
-    await sendReply(messageId, `✅ Compliance ticket created: ${result.ticketUrl}`);
-    await reactToMessage(messageId, 'DONE');
-  } else {
-    await sendReply(messageId, `❌ Failed to create compliance ticket: ${result.error ?? 'Unknown error'}`);
-    await reactToMessage(messageId, 'THUMBSDOWN');
+  console.log(`[compliance] Ticket result:`, JSON.stringify(result));
+
+  try {
+    if (result.success && result.ticketUrl) {
+      await sendReply(messageId, `✅ Compliance ticket created: ${result.ticketUrl}`);
+      await reactToMessage(messageId, 'DONE');
+    } else if (result.error?.includes('draft ticket created')) {
+      await sendReply(messageId, `📝 Draft compliance ticket created (needs manual submission). Error: ${result.error}`);
+      await reactToMessage(messageId, 'DONE');
+    } else {
+      await sendReply(messageId, `❌ Failed to create compliance ticket: ${result.error ?? 'Unknown error'}`);
+      await reactToMessage(messageId, 'THUMBSDOWN');
+    }
+    console.log(`[compliance] Reply sent`);
+  } catch (replyErr) {
+    console.error(`[compliance] Reply failed:`, replyErr);
   }
 }
 
