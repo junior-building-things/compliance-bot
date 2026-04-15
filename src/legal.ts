@@ -49,7 +49,7 @@ export async function createComplianceTicket(params: CreateTicketParams): Promis
     productId: 3001, // TikTok
     affectedRegionsId: ['GLB'], // global
     verificationChargeEmpId: liaisonId,
-    departmentId: process.env.DEPARTMENT_ID ?? '',
+    departmentId: process.env.DEPARTMENT_ID ?? '288980000065031987',
     isInitiate: false, // create as draft — questionnaire must be filled manually
   };
 
