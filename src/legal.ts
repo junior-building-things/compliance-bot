@@ -48,12 +48,14 @@ export async function createComplianceTicket(params: CreateTicketParams): Promis
     reviewCategoryCode: '644', // Social
     productId: 3001, // TikTok
     affectedRegionsId: ['GLB'], // global
-    isInitiate: true, // auto-submit
+    verificationChargeEmpId: liaisonId,
+    departmentId: process.env.DEPARTMENT_ID ?? '',
+    isInitiate: false, // create as draft — questionnaire must be filled manually
   };
 
   const priority = mapPriority(params.priority);
   if (priority) bizObj.priority = priority;
-  if (params.description) bizObj.featureOverview = params.description;
+  bizObj.featureOverview = params.description || params.featureName;
   if (params.prdUrl) bizObj.requirementDocLink = [params.prdUrl];
 
   const timestamp = String(Date.now());
