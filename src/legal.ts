@@ -46,6 +46,7 @@ export async function createComplianceTicket(params: CreateTicketParams): Promis
     sourceBusinessId: params.workItemId,
     sourceLink: params.meegoUrl,
     reviewCategoryCode: '56', // product iteration
+    affectedRegionsId: ['GLB'], // global
     isInitiate: true, // auto-submit
   };
 
