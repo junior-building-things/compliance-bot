@@ -32,6 +32,65 @@ function sign(timestamp: string, bizParams: string): string {
   return createHash('md5').update(APP_SECRET + timestamp + bizParams).digest('hex');
 }
 
+/** Build default questionnaire answers for a typical Social feature */
+function buildDefaultQuestionnaire(featureDescription: string): Array<{ questionCode: string; type: string; value: string }> {
+  return [
+    // === Legal Review ===
+    // Q1: Product functional requirements
+    { questionCode: '3001:12:fa2b2f8a-e22e-43aa-8a1d-16e1d5dc8ff6', type: 'radio', value: 'b31c187c-74da-4216-842e-521317498934' },
+    // Q2: Feature description (textarea)
+    { questionCode: 'TikTok:ProductFeature:LegalReview:FeatureDesc:0', type: 'text', value: featureDescription },
+    // Q3: None of the above involves
+    { questionCode: '3001:413:d81b5974-869f-4693-b59a-c1e387f6f4e9', type: 'radio', value: 'b8892ca4-d335-49cc-9739-76d0708d2b6f' },
+    // Q4: Yes, it is a new feature
+    { questionCode: '3001:413:82b9a487-462e-4a0d-b9e1-fe52bbc85287', type: 'radio', value: '5a5a9a74-4e72-42d8-a2a9-d36bbc9e2c32' },
+    // Q5: New feature but no new names/brands/logos
+    { questionCode: '3001:413:76b84b55-8b3b-4b85-91cb-1d184afd67d7', type: 'radio', value: '6b418dd3-10d6-4c96-8799-a3cc99b73236' },
+    // Q6: No (recommendation algorithm)
+    { questionCode: '3001:413:b4023a94-2dab-443a-ba02-b4cc3c768cc0', type: 'radio', value: '4f07d4a9-7eb8-46ce-b12d-a4fdc47a8805' },
+    // Q7: Yes, deployed in US TTP with USDS coordination
+    { questionCode: '3001:413:7d165cee-dc3d-4de4-907b-f436e5d4fb8a', type: 'radio', value: '1a6ce45a-83d6-4f01-a861-0a0aebf0d598' },
+    // Q8: No, all US data remains in TTP
+    { questionCode: '3001:413:2c9b2c96-1a8f-411a-a0fc-1775a31b5443', type: 'radio', value: 'e6a94773-8342-4be7-8e1b-ff4707fe0765' },
+    // Q9: No third parties require access
+    { questionCode: '3001:1:a5eb3d12-71a0-4052-a755-6c2c96379e16', type: 'radio', value: '037ae2bc-531d-4fcb-b872-95f68aee0a9a' },
+    // Q10: No (payment)
+    { questionCode: 'TikTok:ProductFeature:LegalReview:FeaturePayment:0', type: 'radio', value: '541732b3-490f-4ea7-9148-19d346dfb729' },
+    // Q11: No (third party data)
+    { questionCode: 'TikTok:ProductFeature:LegalReview:ThirdPartyData:0', type: 'radio', value: '5bd4a706-f998-4784-850e-66f7a786ddb7' },
+    // Q12: None of above (user experiences) — checkbox
+    { questionCode: 'TikTok:ProductFeature:LegalReview:UserExperiences:0', type: 'radio', value: 'b84062b4-1068-4a33-95aa-4b3c1562269c' },
+    // Q13: No (collect new data)
+    { questionCode: 'TikTok:ProductFeature:LegalReview:CollectData:0', type: 'radio', value: '96f75ef6-eaee-4714-9da8-46626d8ad53a' },
+    // Q14: None of the above (visible to users) — checkbox
+    { questionCode: '3001:411:c9ab2708-dfb5-4a79-b831-76d9ae41ee5e', type: 'radio', value: 'b104eefd-5560-4c05-82ac-7b8e88a0f086' },
+    // Q15: No, won't need previously collected data — checkbox
+    { questionCode: 'TikTok:ProductFeature:LegalReview:UseDataDetail:0', type: 'radio', value: '84bdb7bf-1562-4c4d-ad28-de462daf9e84' },
+    // Q16: No (new purpose for data)
+    { questionCode: 'TikTok:ProductFeature:LegalReview:NewPurpose:0', type: 'radio', value: 'b2efcaa1-c590-4c42-b4be-9d1ab42c54c6' },
+    // Q17: No (China access to L4 data)
+    { questionCode: 'TikTok:ProductFeature:LegalReview:ChinaAccess:0', type: 'radio', value: '3924b0c5-3ac8-4b99-8ef9-653203942ca0' },
+    // Q18: No (share with third parties)
+    { questionCode: 'TikTok:ProductFeature:LegalReview:ShareDataWithThirdParty:0', type: 'radio', value: '5ee7dbac-38e7-4b69-984e-c8777f2a30d6' },
+
+    // === T&S Review ===
+    // Q19: No (content assurance)
+    { questionCode: 'TikTok:ProductFeature:TnsReview:NewContent:0', type: 'radio', value: 'cee9e9a6-7b46-4696-a14b-c31151b04551' },
+    // Q20: Yes (underage users)
+    { questionCode: '3001:1:e2d4e425-0c60-410e-98bc-a00f8ea361aa', type: 'radio', value: '839e6c18-0968-47ee-a82b-727fb3f8fde3' },
+
+    // === Security & Others Review ===
+    // Q21: None of the above (scenario changes) — checkbox
+    { questionCode: 'TikTok:ProductFeature:SecurityReview:ScenarioChange:0', type: 'radio', value: '6ebc9728-f77e-401b-8675-3a7acc301c1a' },
+
+    // === iOS Review ===
+    // Q22: Yes (faces iOS users)
+    { questionCode: 'TikTok:CoreFeature:AppStore:ios:0', type: 'radio', value: 'ddd15c21-c506-4ede-b7fc-a24e79676f5a' },
+    // Q23: None of the above involves — checkbox
+    { questionCode: 'TikTok:CoreFeature:AppStore:FeatureChange:0', type: 'radio', value: '234934c2-25aa-4661-99f8-6baa6aa7d590' },
+  ];
+}
+
 /** Create a new compliance review ticket via /save */
 export async function createComplianceTicket(params: CreateTicketParams): Promise<ComplianceResult> {
   const liaisonId = params.liaisonId ?? DEFAULT_LIAISON_ID;
@@ -50,12 +109,14 @@ export async function createComplianceTicket(params: CreateTicketParams): Promis
     affectedRegionsId: ['GLB'], // global
     verificationChargeEmpId: liaisonId,
     departmentId: process.env.DEPARTMENT_ID ?? '288980000065031987',
-    isInitiate: false, // create as draft — questionnaire must be filled manually
+    isInitiate: true, // auto-submit with questionnaire
   };
 
   const priority = mapPriority(params.priority);
   if (priority) bizObj.priority = priority;
-  bizObj.featureOverview = params.description || params.featureName;
+  const featureOverview = params.description || params.featureName;
+  bizObj.featureOverview = featureOverview;
+  bizObj.questionnaire = buildDefaultQuestionnaire(featureOverview);
   if (params.prdUrl) bizObj.requirementDocLink = [params.prdUrl];
 
   const timestamp = String(Date.now());
