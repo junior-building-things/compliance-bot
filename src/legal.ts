@@ -60,14 +60,14 @@ function buildDefaultQuestionnaire(featureDescription: string): Array<{ question
     { questionCode: 'TikTok:ProductFeature:LegalReview:FeaturePayment:0', type: 'radio', value: '541732b3-490f-4ea7-9148-19d346dfb729' },
     // Q11: No — third party data (radio)
     { questionCode: 'TikTok:ProductFeature:LegalReview:ThirdPartyData:0', type: 'radio', value: '5bd4a706-f998-4784-850e-66f7a786ddb7' },
-    // Q12: None of above — user experiences (checkbox)
-    { questionCode: 'TikTok:ProductFeature:LegalReview:UserExperiences:0', type: 'checkbox', value: 'b84062b4-1068-4a33-95aa-4b3c1562269c' },
+    // Q12: None of above — user experiences (checkbox as radio)
+    { questionCode: 'TikTok:ProductFeature:LegalReview:UserExperiences:0', type: 'radio', value: '以上都不涉及||none of above' },
     // Q13: No — collect new data (radio)
     { questionCode: 'TikTok:ProductFeature:LegalReview:CollectData:0', type: 'radio', value: '96f75ef6-eaee-4714-9da8-46626d8ad53a' },
-    // Q14: None of the above — visible to users (checkbox)
-    { questionCode: '3001:411:c9ab2708-dfb5-4a79-b831-76d9ae41ee5e', type: 'checkbox', value: 'b104eefd-5560-4c05-82ac-7b8e88a0f086' },
-    // Q15: No, won't need previously collected data (checkbox)
-    { questionCode: 'TikTok:ProductFeature:LegalReview:UseDataDetail:0', type: 'checkbox', value: '84bdb7bf-1562-4c4d-ad28-de462daf9e84' },
+    // Q14: None of the above — visible to users (checkbox as radio)
+    { questionCode: '3001:411:c9ab2708-dfb5-4a79-b831-76d9ae41ee5e', type: 'radio', value: '以上场景均不涉及（例如仅为新入口、结构调整等）||None of the above (e.g. new entrance, structure adjustment, etc.)' },
+    // Q15: No, won't need previously collected data (checkbox as radio)
+    { questionCode: 'TikTok:ProductFeature:LegalReview:UseDataDetail:0', type: 'radio', value: '不需要，这个功能不需要使用任何之前收集的用户数据。||No, this feature won\'t need to use any previously collected data.' },
     // Q16: No — new purpose for data (radio)
     { questionCode: 'TikTok:ProductFeature:LegalReview:NewPurpose:0', type: 'radio', value: 'b2efcaa1-c590-4c42-b4be-9d1ab42c54c6' },
     // Q17: No — China access to L4 data (radio)
@@ -82,14 +82,14 @@ function buildDefaultQuestionnaire(featureDescription: string): Array<{ question
     { questionCode: '3001:1:e2d4e425-0c60-410e-98bc-a00f8ea361aa', type: 'radio', value: '839e6c18-0968-47ee-a82b-727fb3f8fde3' },
 
     // === Security & Others Review ===
-    // Q21: None of the above — scenario changes (checkbox)
-    { questionCode: 'TikTok:ProductFeature:SecurityReview:ScenarioChange:0', type: 'checkbox', value: '6ebc9728-f77e-401b-8675-3a7acc301c1a' },
+    // Q21: None of the above — scenario changes (checkbox as radio)
+    { questionCode: 'TikTok:ProductFeature:SecurityReview:ScenarioChange:0', type: 'radio', value: '不涉及以上任何一项相关的情况||None of the above' },
 
     // === iOS Review ===
     // Q22: Yes — faces iOS users (radio)
     { questionCode: 'TikTok:CoreFeature:AppStore:ios:0', type: 'radio', value: 'ddd15c21-c506-4ede-b7fc-a24e79676f5a' },
-    // Q23: None of the above involves (checkbox)
-    { questionCode: 'TikTok:CoreFeature:AppStore:FeatureChange:0', type: 'checkbox', value: '234934c2-25aa-4661-99f8-6baa6aa7d590' },
+    // Q23: None of the above involves (checkbox as radio)
+    { questionCode: 'TikTok:CoreFeature:AppStore:FeatureChange:0', type: 'radio', value: '以上均不涉及||None of the above involves' },
   ];
 }
 
