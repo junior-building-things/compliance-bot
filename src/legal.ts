@@ -87,6 +87,17 @@ export async function createComplianceTicket(params: CreateTicketParams): Promis
       };
     }
 
+    // Q00409 = draft created but validation failed — try to get the ticket URL
+    if (data.code === 'Q00409') {
+      const lookup = await getExistingTicket(params.workItemId);
+      return {
+        success: true,
+        legalId: lookup.legalId,
+        ticketUrl: lookup.ticketUrl,
+        error: data.msg,
+      };
+    }
+
     return { success: false, error: `${data.code}: ${data.msg}` };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) };

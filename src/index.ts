@@ -124,8 +124,9 @@ async function processMessage(messageId: string, content: string) {
     if (result.success && result.ticketUrl) {
       await sendReply(messageId, `✅ Compliance ticket created: ${result.ticketUrl}`);
       await reactToMessage(messageId, 'DONE');
-    } else if (result.error?.includes('draft ticket created')) {
-      await sendReply(messageId, `📝 Draft compliance ticket created (needs manual submission). Error: ${result.error}`);
+    } else if (result.error?.includes('draft ticket created') || result.error?.includes('validate failed')) {
+      const urlPart = result.ticketUrl ? `\nTicket: ${result.ticketUrl}` : '';
+      await sendReply(messageId, `📝 Draft compliance ticket created (needs manual submission).${urlPart}`);
       await reactToMessage(messageId, 'DONE');
     } else {
       await sendReply(messageId, `❌ Failed to create compliance ticket: ${result.error ?? 'Unknown error'}`);
