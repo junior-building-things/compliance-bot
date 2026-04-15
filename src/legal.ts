@@ -45,7 +45,8 @@ export async function createComplianceTicket(params: CreateTicketParams): Promis
     businessEmpId: liaisonId,
     sourceBusinessId: params.workItemId,
     sourceLink: params.meegoUrl,
-    reviewCategoryCode: '56', // product iteration
+    reviewCategoryCode: '644', // Social
+    productId: 3001, // TikTok
     affectedRegionsId: ['GLB'], // global
     isInitiate: true, // auto-submit
   };
