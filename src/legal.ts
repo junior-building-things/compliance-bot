@@ -58,12 +58,17 @@ export async function createComplianceTicket(params: CreateTicketParams): Promis
   const bizParams = JSON.stringify(bizObj);
 
   try {
-    const res = await fetch(`${BASE_URL}/${APP_ID}/save`, {
+    const url = `${BASE_URL}/${APP_ID}/save`;
+    const body = new URLSearchParams({ timestamp, sign: sign(timestamp, bizParams), bizParams }).toString();
+    console.log(`[legal] POST ${url}`);
+    console.log(`[legal] bizParams: ${bizParams.slice(0, 300)}`);
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ timestamp, sign: sign(timestamp, bizParams), bizParams }).toString(),
+      body,
       signal: AbortSignal.timeout(30_000),
     });
+    console.log(`[legal] Response status: ${res.status}`);
 
     const data = (await res.json()) as {
       success: boolean;
