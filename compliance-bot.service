@@ -12,6 +12,7 @@ Environment=LARK_APP_ID=
 Environment=LARK_APP_SECRET=
 Environment=LEGAL_APP_SECRET=DxzDMnWtXzVY4XdV
 Environment=DEFAULT_LIAISON_ID=7852029
+Environment=no_proxy=legal.bytedance.net,legal-boe.bytedance.net
 
 [Install]
 WantedBy=multi-user.target
