@@ -69,8 +69,10 @@ export async function createComplianceTicket(params: CreateTicketParams): Promis
       signal: AbortSignal.timeout(30_000),
     });
     console.log(`[legal] Response status: ${res.status}`);
+    const text = await res.text();
+    console.log(`[legal] Response body: ${text.slice(0, 500)}`);
 
-    const data = (await res.json()) as {
+    const data = JSON.parse(text) as {
       success: boolean;
       code: string;
       msg: string;
