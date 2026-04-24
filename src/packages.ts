@@ -20,15 +20,18 @@ interface PlatformPackage {
   packageName?: string;
 }
 
-function serialize(pkg: MrPackage | null, platform: 'android' | 'ios'): PlatformPackage | null {
+function serialize(pkg: MrPackage | null, mr: KanbanItem, platform: 'android' | 'ios'): PlatformPackage | null {
   if (!pkg) return null;
-  // For iOS, the QR should encode the itms-services:// install link so scanning on
-  // an iPhone triggers the Install dialog. For Android, the APK URL itself works.
+  // For iOS, the QR encodes the itms-services:// install link so scanning on an
+  // iPhone triggers the Install dialog. For Android, the APK URL works directly.
   const qrUrl = platform === 'ios' && pkg.install_url ? pkg.install_url : pkg.package_url;
   return {
-    version: '',
+    version: mr.release_info?.version ?? '',
     qrUrl,
-    downloadUrl: pkg.package_url,
+    // `downloadUrl` is what Hamlet links to under the QR. Point at the Bits MR
+    // page so PMs land on the MR (with all its build history) rather than an
+    // opaque .ipa/.apk file.
+    downloadUrl: mr.url || pkg.package_url,
     commitId: pkg.commit_id,
     packageName: pkg.package_name,
   };
@@ -43,10 +46,7 @@ async function resolvePlatformPackage(
   if (!info?.project_id || !info?.iid) return null;
   const groups = await fetchMrPackages(info.project_id, info.iid);
   const pkg = pickLatestMrPackage(groups, platform);
-  const p = serialize(pkg, platform);
-  // Capture the MR-info-level product_version if the package entry didn't have one
-  if (p && mr.release_info?.version) p.version = mr.release_info.version;
-  return p;
+  return serialize(pkg, mr, platform);
 }
 
 export async function uploadPerMeegoPackages(): Promise<void> {
