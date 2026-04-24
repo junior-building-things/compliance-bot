@@ -25,9 +25,10 @@ function formatBuildTime(epochSeconds: number): string {
   if (!epochSeconds) return '';
   // Bits create_time is seconds-since-epoch (10-digit) for MR packages.
   const ms = epochSeconds < 1e12 ? epochSeconds * 1000 : epochSeconds;
-  const d = new Date(ms);
+  // Singapore is UTC+8 year-round (no DST).
+  const d = new Date(ms + 8 * 60 * 60 * 1000);
   const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} UTC`;
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} SGT`;
 }
 
 function serialize(pkg: MrPackage | null, mr: KanbanItem, platform: 'android' | 'ios'): PlatformPackage | null {
