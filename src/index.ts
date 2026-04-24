@@ -5,7 +5,7 @@ import { uploadPerMeegoPackages } from './packages.js';
 const LARK_BASE_URL = process.env.LARK_BASE_URL ?? 'https://open.larkoffice.com';
 const COMPLIANCE_CHAT_ID = 'oc_d1f9b0ad6b325ef6699e0422fa1e8541';
 const POLL_INTERVAL = 60_000; // 60 seconds
-const PACKAGE_INTERVAL = 30 * 60 * 1000; // 30 min
+const PACKAGE_INTERVAL = 24 * 60 * 60 * 1000; // 24 h
 
 // Track processed message IDs to avoid duplicates
 const processed = new Set<string>();
@@ -181,7 +181,7 @@ async function start() {
   // Per-meego package fetcher: run on boot, then every 30 min
   uploadPerMeegoPackages();
   setInterval(uploadPerMeegoPackages, PACKAGE_INTERVAL);
-  console.log(`[init] Package fetcher started (every ${PACKAGE_INTERVAL / 60_000} min)`);
+  console.log(`[init] Package fetcher started (every ${PACKAGE_INTERVAL / 3_600_000} h)`);
 }
 
 start();
