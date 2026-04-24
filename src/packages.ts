@@ -29,9 +29,8 @@ function serialize(pkg: MrPackage | null, mr: KanbanItem, platform: 'android' | 
     version: mr.release_info?.version ?? '',
     qrUrl,
     // `downloadUrl` is what Hamlet links to under the QR. Point at the Bits MR
-    // page so PMs land on the MR (with all its build history) rather than an
-    // opaque .ipa/.apk file.
-    downloadUrl: mr.url || pkg.package_url,
+    // page's Packages tab so PMs land directly on the build history.
+    downloadUrl: mr.url ? `${mr.url}?tab=packages` : pkg.package_url,
     commitId: pkg.commit_id,
     packageName: pkg.package_name,
   };
