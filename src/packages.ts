@@ -15,9 +15,19 @@ const CRON_SECRET = process.env.CRON_SECRET ?? '';
 interface PlatformPackage {
   version: string;         // product version (e.g. "44.9.0") from the MR info if available
   qrUrl: string;           // iOS: itms-services install URL; Android: APK download URL
-  downloadUrl: string;     // raw voffline URL (direct download)
+  downloadUrl: string;     // link to the Bits MR Packages tab
   commitId?: string;
   packageName?: string;
+  buildTime?: string;      // "YYYY-MM-DD HH:MM:SS" local time
+}
+
+function formatBuildTime(epochSeconds: number): string {
+  if (!epochSeconds) return '';
+  // Bits create_time is seconds-since-epoch (10-digit) for MR packages.
+  const ms = epochSeconds < 1e12 ? epochSeconds * 1000 : epochSeconds;
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} UTC`;
 }
 
 function serialize(pkg: MrPackage | null, mr: KanbanItem, platform: 'android' | 'ios'): PlatformPackage | null {
@@ -33,6 +43,7 @@ function serialize(pkg: MrPackage | null, mr: KanbanItem, platform: 'android' | 
     downloadUrl: mr.url ? `${mr.url}?tab=packages` : pkg.package_url,
     commitId: pkg.commit_id,
     packageName: pkg.package_name,
+    buildTime: formatBuildTime(pkg.create_time),
   };
 }
 
