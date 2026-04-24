@@ -1,133 +1,157 @@
 const BITS_BASE = 'https://bits.bytedance.net';
-const BITS_SA_SECRET = process.env.BITS_SA_SECRET ?? process.env.BITS_TOKEN ?? '';
-const IOS_APP_ID = Number(process.env.BITS_IOS_APP_ID ?? 118001);
-const ANDROID_APP_ID = Number(process.env.BITS_ANDROID_APP_ID ?? 118002);
+const CLOUD_JWT_URL = 'https://cloud.bytedance.net/auth/api/v1/jwt';
+const BITS_SA_SECRET = process.env.BITS_SA_SECRET ?? '';
 const TIKTOK_PROJECT_KEY = '5f105019a8b9a853da64767f';
 
-async function bitsFetch(url: string): Promise<Response> {
-  return fetch(url, {
+// ─── JWT management ─────────────────────────────────────────────────────────
+// Service account secret → JWT (returned in x-jwt-token header). JWT is valid
+// for ~1h. Fetch lazily and cache until close to expiry.
+
+let cachedJwt = '';
+let jwtExpiresAt = 0;
+
+function decodeJwtExp(jwt: string): number {
+  try {
+    const payload = JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toString('utf8')) as { exp?: number };
+    return (payload.exp ?? 0) * 1000;
+  } catch { return 0; }
+}
+
+async function getJwt(): Promise<string> {
+  if (cachedJwt && Date.now() < jwtExpiresAt - 60_000) return cachedJwt;
+  if (!BITS_SA_SECRET) throw new Error('BITS_SA_SECRET not configured');
+
+  const res = await fetch(CLOUD_JWT_URL, {
     headers: { Authorization: `Bearer ${BITS_SA_SECRET}` },
+    signal: AbortSignal.timeout(10_000),
+  });
+  const jwt = res.headers.get('x-jwt-token');
+  if (!jwt) throw new Error(`JWT exchange failed (HTTP ${res.status})`);
+  cachedJwt = jwt;
+  jwtExpiresAt = decodeJwtExp(jwt) || Date.now() + 50 * 60 * 1000;
+  return jwt;
+}
+
+async function bitsJson<T>(path: string): Promise<T | null> {
+  const jwt = await getJwt();
+  const res = await fetch(`${BITS_BASE}${path}`, {
+    headers: { 'x-jwt-token': jwt },
     signal: AbortSignal.timeout(15_000),
   });
+  if (!res.ok) return null;
+  try { return (await res.json()) as T; } catch { return null; }
 }
 
 // ─── Kanban: Meego ID → linked MRs / dev tasks / release tickets ────────────
 
 export interface KanbanItem {
   business_type: 'merge_request' | 'bc21' | 'bc21_release_ticket' | string;
-  business_id: number;
+  business_id: number;     // devops-scheme MR id (used in the /devops/.../code/detail/<id> URL)
   title: string;
   url: string;
-  state: string;          // 'merge' | 'close' | 'open' | 'finish' | ...
-  stage: string;          // 'integration' | 'dev' | ...
-  rd_role: string;        // 'Android' | 'iOS' | 'BE/FE' | 'ReleaseTicket'
-  user?: { name?: string; avatar?: string };
+  state: string;           // 'merge' | 'close' | 'open' | 'finish' | ...
+  stage: string;
+  rd_role: string;         // 'Android' | 'iOS' | 'BE/FE' | 'ReleaseTicket'
   create_time: number;
   update_time: number;
-  release_info?: {
-    version?: string;
-    url?: string;
-    status?: string;
-    is_gray?: boolean;
-  };
+  release_info?: { version?: string; url?: string; status?: string; is_gray?: boolean };
 }
 
 export async function fetchKanbanForMeego(meegoId: string): Promise<KanbanItem[]> {
-  const url = `${BITS_BASE}/openapi/meego_plugin/kanban/list?task_type=issue&task_id=${meegoId}`;
-  const res = await bitsFetch(url);
-  if (!res.ok) return [];
-  const data = (await res.json()) as { code: number; data?: KanbanItem[] };
-  if (data.code !== 200 || !Array.isArray(data.data)) return [];
+  const data = await bitsJson<{ code: number; data?: KanbanItem[] }>(
+    `/openapi/meego_plugin/kanban/list?task_type=issue&task_id=${meegoId}`,
+  );
+  if (data?.code !== 200 || !Array.isArray(data.data)) return [];
   return data.data;
 }
 
-/** For a given meego_id, return the latest-merged MR per platform along with
- *  its release_info.version (the Bits workflow version the MR landed in). */
+/** Latest merged MR for a given platform. */
 export function pickLatestMergedByRole(items: KanbanItem[], rdRole: 'Android' | 'iOS'): KanbanItem | null {
   const candidates = items.filter(i =>
-    i.business_type === 'merge_request' &&
-    i.rd_role === rdRole &&
-    i.state === 'merge' &&
-    !!i.release_info?.version,
+    i.business_type === 'merge_request' && i.rd_role === rdRole && i.state === 'merge',
   );
   if (candidates.length === 0) return null;
-  // Pick the one with the largest update_time (most recent activity).
   return candidates.reduce((best, c) =>
     !best || (c.update_time ?? 0) > (best.update_time ?? 0) ? c : best,
     null as KanbanItem | null,
   );
 }
 
-// ─── Workflow artifact lookup: version → APK/IPA ────────────────────────────
+// ─── MR translation: devops mr_id → { project_id, mr_iid } ─────────────────
 
-export interface Artifact {
-  artifact_id: number;
-  artifact_name: string;
-  version_name: string;
-  update_version: string;
-  commit_id: string;
-  branch: string;
-  channel: string;
-  download_url: string;
-  qr_code_url: string;
-  tags?: Record<string, string>;
+interface MrInfo {
+  iid?: number;
+  project_id?: number;
+  title?: string;
+  state?: string;
 }
 
-interface Stage {
-  stage_name: string;
-  stage_status: string;
-  artifacts?: Artifact[];
-}
-
-async function listWorkflowArtifacts(appId: number, version: string): Promise<Artifact[]> {
-  const url = `${BITS_BASE}/api/v1/release/workflow/artifact/list?bits_app_id=${appId}&version=${encodeURIComponent(version)}&workflow_type=1&page_size=100`;
-  const res = await bitsFetch(url);
-  if (!res.ok) return [];
-  const data = (await res.json()) as { code: number; data?: Stage[] };
-  if (data.code !== 200 || !Array.isArray(data.data)) return [];
-  const all: Artifact[] = [];
-  for (const stage of data.data) {
-    if (stage.artifacts) all.push(...stage.artifacts);
-  }
-  return all;
-}
-
-function updateVersionNumber(a: Artifact): number {
-  const n = Number(a.update_version);
-  return Number.isFinite(n) ? n : 0;
-}
-
-/** Pick the "best" artifact: prefer the given channel, else the one with the highest update_version. */
-function pickLatest(artifacts: Artifact[], preferredChannels: string[]): Artifact | null {
-  if (artifacts.length === 0) return null;
-  for (const ch of preferredChannels) {
-    const pool = artifacts.filter(a => a.channel === ch);
-    if (pool.length > 0) {
-      return pool.reduce((best, a) =>
-        !best || updateVersionNumber(a) > updateVersionNumber(best) ? a : best,
-        null as Artifact | null,
-      );
-    }
-  }
-  return artifacts.reduce((best, a) =>
-    !best || updateVersionNumber(a) > updateVersionNumber(best) ? a : best,
-    null as Artifact | null,
+export async function translateMrId(devopsMrId: number): Promise<MrInfo | null> {
+  const data = await bitsJson<{ code?: number; status?: number; data?: MrInfo }>(
+    `/openapi/merge_request/info?mr_id=${devopsMrId}`,
   );
+  return data?.data ?? null;
 }
 
-export async function fetchArtifactForPlatform(
+// ─── MR packages: project_id + mr_iid → build artifacts ────────────────────
+
+export interface MrArtifact {
+  type: string;
+  name: string;
+  url: string;
+}
+
+export interface MrPackage {
+  id: number;
+  package_name: string;      // 'MusicallyInhouseRelease' | 'TikTokInhouseRelease' | ...
+  package_url: string;       // raw voffline download
+  install_url?: string;      // itms-services:// for iOS (use this for the QR)
+  commit_id: string;
+  create_time: number;
+  update_time: number;
+  artifacts?: MrArtifact[];
+}
+
+interface MrPackageGroup {
+  id: number;
+  packages: MrPackage[];
+  create_time: number;
+}
+
+export async function fetchMrPackages(projectId: number, mrIid: number): Promise<MrPackageGroup[]> {
+  const data = await bitsJson<{ code: number; data?: MrPackageGroup[] }>(
+    `/api/mr_package/get_packages?project_id=${projectId}&mr_iid=${mrIid}&need_task=true`,
+  );
+  if (data?.code !== 200 || !Array.isArray(data.data)) return [];
+  return data.data;
+}
+
+/** Pick the latest package matching the preferred platform build name.
+ *  For iOS, we prefer the Musically bundle (the actual US/intl TikTok IPA). */
+export function pickLatestMrPackage(
+  groups: MrPackageGroup[],
   platform: 'android' | 'ios',
-  version: string,
-): Promise<Artifact | null> {
-  const appId = platform === 'android' ? ANDROID_APP_ID : IOS_APP_ID;
-  const artifacts = await listWorkflowArtifacts(appId, version);
-  const preferred = platform === 'android'
-    ? ['googleplay', 'huaweiadsglobal_int']
-    : ['appstore', 'testflight', 'enterprise'];
-  return pickLatest(artifacts, preferred);
+): MrPackage | null {
+  if (groups.length === 0) return null;
+  // Most recent build group first
+  const sorted = [...groups].sort((a, b) => (b.create_time ?? 0) - (a.create_time ?? 0));
+  const preferredNames = platform === 'ios'
+    ? ['MusicallyInhouseRelease', 'TikTokInhouseRelease']
+    : ['TikTokInhouseRelease', 'MusicallyInhouseRelease'];
+  for (const group of sorted) {
+    if (!group.packages || group.packages.length === 0) continue;
+    for (const name of preferredNames) {
+      const match = group.packages.find(p => p.package_name === name && p.package_url);
+      if (match) return match;
+    }
+    // Fallback: any package with a URL
+    const any = group.packages.find(p => p.package_url);
+    if (any) return any;
+  }
+  return null;
 }
 
-// ─── Meego MCP: list active TikTok features ─────────────────────────────────
+// ─── Meego MCP: list TikTok features ────────────────────────────────────────
 
 const MEEGO_MCP_URL = 'https://meego.larkoffice.com/mcp_server/v1';
 const MEEGO_TOKEN = process.env.MEEGO_USER_TOKEN ?? '';
@@ -149,13 +173,11 @@ async function callMeegoMcp(toolName: string, args: Record<string, unknown>): Pr
   return data.result?.content?.[0]?.text ?? '';
 }
 
-/** List TikTok features owned by the current PM (token owner). */
 export async function listActiveTikTokFeatures(): Promise<Array<{ workItemId: string; name: string }>> {
   const features: Array<{ workItemId: string; name: string }> = [];
   const MQL = "SELECT `work_item_id`, `name` FROM `TikTok`.`需求` WHERE `__PM` = current_login_user()";
   const GROUP_ID = '1';
 
-  // Paged MQL loop (same pattern as Hamlet/Junior)
   let sessionId: string | undefined;
   let page = 1;
   while (true) {
@@ -172,7 +194,6 @@ export async function listActiveTikTokFeatures(): Promise<Array<{ workItemId: st
     };
     try { data = JSON.parse(raw); } catch { break; }
     if (!sessionId) sessionId = data.session_id;
-
     const total = data.list?.[0]?.count ?? 0;
     const items = data.data?.[GROUP_ID] ?? [];
     for (const item of items) {

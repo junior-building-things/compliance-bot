@@ -2,30 +2,51 @@ import {
   listActiveTikTokFeatures,
   fetchKanbanForMeego,
   pickLatestMergedByRole,
-  fetchArtifactForPlatform,
-  Artifact,
+  translateMrId,
+  fetchMrPackages,
+  pickLatestMrPackage,
+  MrPackage,
+  KanbanItem,
 } from './bits.js';
 
 const JUNIOR_URL = process.env.JUNIOR_URL ?? 'https://junior-416594255546.asia-southeast1.run.app';
 const CRON_SECRET = process.env.CRON_SECRET ?? '';
 
 interface PlatformPackage {
-  version: string;
-  qrUrl: string;
-  downloadUrl: string;
+  version: string;         // product version (e.g. "44.9.0") from the MR info if available
+  qrUrl: string;           // iOS: itms-services install URL; Android: APK download URL
+  downloadUrl: string;     // raw voffline URL (direct download)
   commitId?: string;
-  channel?: string;
+  packageName?: string;
 }
 
-function serialize(a: Artifact | null): PlatformPackage | null {
-  if (!a) return null;
+function serialize(pkg: MrPackage | null, platform: 'android' | 'ios'): PlatformPackage | null {
+  if (!pkg) return null;
+  // For iOS, the QR should encode the itms-services:// install link so scanning on
+  // an iPhone triggers the Install dialog. For Android, the APK URL itself works.
+  const qrUrl = platform === 'ios' && pkg.install_url ? pkg.install_url : pkg.package_url;
   return {
-    version: a.version_name,
-    qrUrl: a.qr_code_url,
-    downloadUrl: a.download_url,
-    commitId: a.commit_id,
-    channel: a.channel,
+    version: '',
+    qrUrl,
+    downloadUrl: pkg.package_url,
+    commitId: pkg.commit_id,
+    packageName: pkg.package_name,
   };
+}
+
+async function resolvePlatformPackage(
+  mr: KanbanItem | null,
+  platform: 'android' | 'ios',
+): Promise<PlatformPackage | null> {
+  if (!mr) return null;
+  const info = await translateMrId(mr.business_id);
+  if (!info?.project_id || !info?.iid) return null;
+  const groups = await fetchMrPackages(info.project_id, info.iid);
+  const pkg = pickLatestMrPackage(groups, platform);
+  const p = serialize(pkg, platform);
+  // Capture the MR-info-level product_version if the package entry didn't have one
+  if (p && mr.release_info?.version) p.version = mr.release_info.version;
+  return p;
 }
 
 export async function uploadPerMeegoPackages(): Promise<void> {
@@ -46,8 +67,6 @@ export async function uploadPerMeegoPackages(): Promise<void> {
   const out: Record<string, { android: PlatformPackage | null; ios: PlatformPackage | null }> = {};
   let found = 0;
 
-  // Process all features; kanban naturally returns empty for pre-dev ones.
-  // Batch to avoid hammering Bits but still finish in reasonable time.
   const BATCH = 5;
   let processed = 0;
   for (let i = 0; i < features.length; i += BATCH) {
@@ -56,20 +75,14 @@ export async function uploadPerMeegoPackages(): Promise<void> {
       try {
         const items = await fetchKanbanForMeego(f.workItemId);
         if (items.length === 0) return;
-
         const androidMr = pickLatestMergedByRole(items, 'Android');
         const iosMr = pickLatestMergedByRole(items, 'iOS');
-        const aVer = androidMr?.release_info?.version;
-        const iVer = iosMr?.release_info?.version;
-        if (!aVer && !iVer) return;
+        if (!androidMr && !iosMr) return;
 
-        const [androidArt, iosArt] = await Promise.all([
-          aVer ? fetchArtifactForPlatform('android', aVer) : Promise.resolve(null),
-          iVer ? fetchArtifactForPlatform('ios',     iVer) : Promise.resolve(null),
+        const [android, ios] = await Promise.all([
+          resolvePlatformPackage(androidMr, 'android'),
+          resolvePlatformPackage(iosMr, 'ios'),
         ]);
-
-        const android = serialize(androidArt);
-        const ios = serialize(iosArt);
         if (android || ios) {
           out[f.workItemId] = { android, ios };
           found++;
