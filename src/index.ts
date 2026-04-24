@@ -1,9 +1,11 @@
 import { getTenantToken, sendReply, reactToMessage } from './lark.js';
 import { createComplianceTicket, getExistingTicket } from './legal.js';
+import { uploadLatestPackages } from './packages.js';
 
 const LARK_BASE_URL = process.env.LARK_BASE_URL ?? 'https://open.larkoffice.com';
 const COMPLIANCE_CHAT_ID = 'oc_d1f9b0ad6b325ef6699e0422fa1e8541';
 const POLL_INTERVAL = 60_000; // 60 seconds
+const PACKAGE_INTERVAL = 30 * 60 * 1000; // 30 min
 
 // Track processed message IDs to avoid duplicates
 const processed = new Set<string>();
@@ -175,6 +177,11 @@ async function start() {
   // Start polling for new messages
   setInterval(poll, POLL_INTERVAL);
   console.log('[init] Polling started');
+
+  // Packages: fetch latest from Bits and upload to Junior on boot + every 30 min
+  uploadLatestPackages();
+  setInterval(uploadLatestPackages, PACKAGE_INTERVAL);
+  console.log(`[init] Package fetcher started (every ${PACKAGE_INTERVAL / 60_000} min)`);
 }
 
 start();
