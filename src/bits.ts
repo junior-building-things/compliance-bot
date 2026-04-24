@@ -149,10 +149,10 @@ async function callMeegoMcp(toolName: string, args: Record<string, unknown>): Pr
   return data.result?.content?.[0]?.text ?? '';
 }
 
-/** Returns work items that are past PRD prep — i.e., have code. */
-export async function listActiveTikTokFeatures(): Promise<Array<{ workItemId: string; name: string; status: string }>> {
-  const features: Array<{ workItemId: string; name: string; status: string }> = [];
-  const MQL = "SELECT `work_item_id`, `name`, `work_item_status` FROM `TikTok`.`需求` WHERE `__PM` = current_login_user()";
+/** List TikTok features owned by the current PM (token owner). */
+export async function listActiveTikTokFeatures(): Promise<Array<{ workItemId: string; name: string }>> {
+  const features: Array<{ workItemId: string; name: string }> = [];
+  const MQL = "SELECT `work_item_id`, `name` FROM `TikTok`.`需求` WHERE `__PM` = current_login_user()";
   const GROUP_ID = '1';
 
   // Paged MQL loop (same pattern as Hamlet/Junior)
@@ -167,7 +167,7 @@ export async function listActiveTikTokFeatures(): Promise<Array<{ workItemId: st
       session_id?: string;
       list?: Array<{ count: number }>;
       data?: Record<string, Array<{
-        moql_field_list: Array<{ key: string; value: { varchar_value?: string; long_value?: number; key_label_value?: { label: string; key?: string } } }>;
+        moql_field_list: Array<{ key: string; value: { varchar_value?: string; long_value?: number } }>;
       }>>;
     };
     try { data = JSON.parse(raw); } catch { break; }
@@ -178,9 +178,7 @@ export async function listActiveTikTokFeatures(): Promise<Array<{ workItemId: st
     for (const item of items) {
       const id = item.moql_field_list.find(f => f.key === 'work_item_id')?.value.long_value;
       const name = item.moql_field_list.find(f => f.key === 'name')?.value.varchar_value ?? '';
-      const statusObj = item.moql_field_list.find(f => f.key === 'work_item_status')?.value.key_label_value;
-      const status = statusObj?.key ?? '';
-      if (id) features.push({ workItemId: String(id), name, status });
+      if (id) features.push({ workItemId: String(id), name });
     }
     if (features.length >= total || items.length === 0) break;
     page++;

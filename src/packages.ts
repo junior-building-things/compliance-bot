@@ -9,33 +9,6 @@ import {
 const JUNIOR_URL = process.env.JUNIOR_URL ?? 'https://junior-416594255546.asia-southeast1.run.app';
 const CRON_SECRET = process.env.CRON_SECRET ?? '';
 
-// Meego statuses where a Bits dev task / MR is expected to exist.
-// Status keys come from Meego `work_item_status.key` — we keep this inclusive
-// because statuses vary across projects.
-const HAS_CODE_STATUS_KEYS = new Set([
-  'development',
-  'development_started',
-  'development_completed',
-  'development_ing',
-  'development_done',
-  'test',
-  'testing',
-  'ab_test',
-  'grey_release',
-  'full_release',
-  'online',
-  'done',
-  'released',
-]);
-
-function hasCode(statusKey: string): boolean {
-  if (!statusKey) return false;
-  const k = statusKey.toLowerCase();
-  if (HAS_CODE_STATUS_KEYS.has(k)) return true;
-  // Heuristic fallback: include anything that looks dev/QA/AB/launched
-  return /dev|test|ab|grey|launch|release|online|merg|qa|uat/.test(k);
-}
-
 interface PlatformPackage {
   version: string;
   qrUrl: string;
@@ -73,28 +46,40 @@ export async function uploadPerMeegoPackages(): Promise<void> {
   const out: Record<string, { android: PlatformPackage | null; ios: PlatformPackage | null }> = {};
   let found = 0;
 
-  // Serial to avoid hammering Bits; could parallelise in small batches later.
-  for (const f of features) {
-    if (!hasCode(f.status)) continue;
-    try {
-      const items = await fetchKanbanForMeego(f.workItemId);
-      const androidMr = pickLatestMergedByRole(items, 'Android');
-      const iosMr = pickLatestMergedByRole(items, 'iOS');
+  // Process all features; kanban naturally returns empty for pre-dev ones.
+  // Batch to avoid hammering Bits but still finish in reasonable time.
+  const BATCH = 5;
+  let processed = 0;
+  for (let i = 0; i < features.length; i += BATCH) {
+    const batch = features.slice(i, i + BATCH);
+    await Promise.all(batch.map(async (f) => {
+      try {
+        const items = await fetchKanbanForMeego(f.workItemId);
+        if (items.length === 0) return;
 
-      const [androidArt, iosArt] = await Promise.all([
-        androidMr?.release_info?.version ? fetchArtifactForPlatform('android', androidMr.release_info.version) : Promise.resolve(null),
-        iosMr?.release_info?.version ? fetchArtifactForPlatform('ios', iosMr.release_info.version) : Promise.resolve(null),
-      ]);
+        const androidMr = pickLatestMergedByRole(items, 'Android');
+        const iosMr = pickLatestMergedByRole(items, 'iOS');
+        const aVer = androidMr?.release_info?.version;
+        const iVer = iosMr?.release_info?.version;
+        if (!aVer && !iVer) return;
 
-      const android = serialize(androidArt);
-      const ios = serialize(iosArt);
-      if (android || ios) {
-        out[f.workItemId] = { android, ios };
-        found++;
+        const [androidArt, iosArt] = await Promise.all([
+          aVer ? fetchArtifactForPlatform('android', aVer) : Promise.resolve(null),
+          iVer ? fetchArtifactForPlatform('ios',     iVer) : Promise.resolve(null),
+        ]);
+
+        const android = serialize(androidArt);
+        const ios = serialize(iosArt);
+        if (android || ios) {
+          out[f.workItemId] = { android, ios };
+          found++;
+        }
+      } catch (e) {
+        console.error(`[packages] Feature ${f.workItemId} (${f.name}) failed:`, e);
       }
-    } catch (e) {
-      console.error(`[packages] Feature ${f.workItemId} (${f.name}) failed:`, e);
-    }
+    }));
+    processed += batch.length;
+    if (processed % 25 === 0) console.log(`[packages] Progress: ${processed}/${features.length} (${found} with packages so far)`);
   }
 
   const payload = {
