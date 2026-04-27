@@ -156,11 +156,12 @@ export async function createComplianceTicket(params: CreateTicketParams): Promis
 
     // Q00409 = draft created but validation failed — try to get the ticket URL
     if (data.code === 'Q00409') {
-      const lookup = await getExistingTicket(params.workItemId);
+      const items = await listExistingTickets(params.workItemId);
+      const first = items[0];
       return {
         success: true,
-        legalId: lookup.legalId,
-        ticketUrl: lookup.ticketUrl,
+        legalId: first?.legalId,
+        ticketUrl: first?.detailUrl ?? (first?.legalId ? `https://legal.bytedance.com/compliance/detail?id=${first.legalId}` : undefined),
         error: data.msg,
       };
     }
@@ -171,8 +172,8 @@ export async function createComplianceTicket(params: CreateTicketParams): Promis
   }
 }
 
-/** Check if a compliance ticket already exists for a Meego work item */
-export async function getExistingTicket(workItemId: string): Promise<ComplianceResult> {
+/** All existing legal tickets bound to a given Meego work item. */
+async function listExistingTickets(workItemId: string): Promise<Array<{ legalId: number; detailUrl: string }>> {
   const timestamp = String(Date.now());
   const bizParams = JSON.stringify({ workItemIds: [workItemId] });
 
@@ -183,19 +184,63 @@ export async function getExistingTicket(workItemId: string): Promise<ComplianceR
       body: new URLSearchParams({ timestamp, sign: sign(timestamp, bizParams), bizParams }).toString(),
       signal: AbortSignal.timeout(30_000),
     });
-
     const data = (await res.json()) as {
       success: boolean;
       data?: Array<{ workItemId: string; items?: Array<{ legalId: number; detailUrl: string }> }>;
     };
-
-    if (data.success && data.data?.[0]?.items?.length) {
-      const first = data.data[0].items[0];
-      return { success: true, legalId: first.legalId, ticketUrl: first.detailUrl };
-    }
-
-    return { success: true }; // no existing ticket
-  } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : String(e) };
+    return data.success ? (data.data?.[0]?.items ?? []) : [];
+  } catch {
+    return [];
   }
+}
+
+interface TicketDetail {
+  legalId: number;
+  detailUrl?: string;
+  submitTime?: number;       // 0 / missing = unsubmitted draft
+  reviewStatus?: string;
+}
+
+async function getTicketDetail(legalId: number, operatorId: number): Promise<TicketDetail | null> {
+  const timestamp = String(Date.now());
+  const bizParams = JSON.stringify({ id: String(legalId), idSource: 'legal', operatorId });
+  try {
+    const res = await fetch(`${BASE_URL}/${APP_ID}/get-detail`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ timestamp, sign: sign(timestamp, bizParams), bizParams }).toString(),
+      signal: AbortSignal.timeout(30_000),
+    });
+    const data = (await res.json()) as {
+      success: boolean;
+      data?: { id?: number; submitTime?: number; reviewStatus?: string; detailUrl?: string };
+    };
+    if (!data.success || !data.data) return null;
+    return {
+      legalId: data.data.id ?? legalId,
+      detailUrl: data.data.detailUrl,
+      submitTime: data.data.submitTime,
+      reviewStatus: data.data.reviewStatus,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Returns the first SUBMITTED ticket for a work item (submitTime > 0).
+ *  Stale unsubmitted drafts are ignored so we can recreate + submit them. */
+export async function getSubmittedTicket(workItemId: string): Promise<ComplianceResult> {
+  const liaisonId = DEFAULT_LIAISON_ID;
+  const items = await listExistingTickets(workItemId);
+  for (const item of items) {
+    const detail = await getTicketDetail(item.legalId, liaisonId);
+    if (detail && detail.submitTime && detail.submitTime > 0) {
+      return {
+        success: true,
+        legalId: detail.legalId,
+        ticketUrl: detail.detailUrl ?? item.detailUrl ?? `https://legal.bytedance.com/compliance/detail?id=${detail.legalId}`,
+      };
+    }
+  }
+  return { success: true }; // no submitted ticket — okay to create
 }

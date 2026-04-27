@@ -1,5 +1,5 @@
 import { getTenantToken, sendReply, reactToMessage } from './lark.js';
-import { createComplianceTicket } from './legal.js';
+import { createComplianceTicket, getSubmittedTicket } from './legal.js';
 import { uploadPerMeegoPackages } from './packages.js';
 
 const LARK_BASE_URL = process.env.LARK_BASE_URL ?? 'https://open.larkoffice.com';
@@ -126,9 +126,21 @@ async function processMessage(messageId: string, content: string, msgType: strin
   console.log(`[compliance] Reacting...`);
   await reactToMessage(messageId, 'OnIt').catch(e => console.error('[compliance] React failed:', e));
 
-  // Always create + submit a new ticket. Stale drafts on legal.bytedance.com
-  // are common (test runs, prior manual attempts) — surfacing the existing
-  // draft would block real submissions.
+  // Skip only if there's an actually-submitted ticket. Stale unsubmitted
+  // drafts (from test runs / abandoned manual attempts) should not block
+  // a fresh submission.
+  try {
+    const submitted = await getSubmittedTicket(card.workItemId);
+    if (submitted.ticketUrl) {
+      console.log(`[compliance] Already submitted: ${submitted.ticketUrl}`);
+      await sendReply(messageId, `ℹ️ Compliance ticket already submitted: ${submitted.ticketUrl}`);
+      await reactToMessage(messageId, 'DONE');
+      return;
+    }
+  } catch (e) {
+    console.error('[compliance] getSubmittedTicket failed (continuing to create):', e);
+  }
+
   console.log(`[compliance] Creating new ticket...`);
   const result = await createComplianceTicket({
     featureName: card.featureName ?? `Feature ${card.workItemId}`,
