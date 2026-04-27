@@ -30,7 +30,7 @@ function parseCardContent(raw: string): {
   return { featureName, priority, description, meegoUrl, prdUrl, workItemId };
 }
 
-async function fetchRecentMessages(): Promise<Array<{ messageId: string; content: string }>> {
+async function fetchRecentMessages(): Promise<Array<{ messageId: string; content: string; msgType: string }>> {
   const token = await getTenantToken();
   const res = await fetch(
     `${LARK_BASE_URL}/open-apis/im/v1/messages?container_id_type=chat&container_id=${COMPLIANCE_CHAT_ID}&page_size=20&sort_type=ByCreateTimeDesc`,
