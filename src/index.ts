@@ -47,45 +47,55 @@ async function fetchRecentMessages(): Promise<Array<{ messageId: string; content
   }
 
   return (data.data?.items ?? [])
-    .filter(m => m.msg_type === 'interactive')
-    .map(m => ({ messageId: m.message_id, content: m.body?.content ?? '' }));
+    .filter(m => m.msg_type === 'interactive' || m.msg_type === 'text')
+    .map(m => ({ messageId: m.message_id, content: m.body?.content ?? '', msgType: m.msg_type }));
 }
 
-async function processMessage(messageId: string, content: string) {
-  // Parse card header and content — Lark API returns a different format than what we send
+async function processMessage(messageId: string, content: string, msgType: string) {
+  // Two accepted formats:
+  //   1. Interactive card with title "PRD Ready ✅" (sent by Junior or test script).
+  //   2. Plain text message that mentions "PRD Ready" anywhere AND contains a Meego URL.
   let cardTitle = '';
   let markdown = '';
-  try {
-    const parsed = JSON.parse(content);
-    // Title can be at parsed.title or parsed.header.title.content
-    cardTitle = parsed.title ?? parsed.header?.title?.content ?? '';
-    // Elements can be nested arrays of {tag, text} or {tag, content}
-    const elements = parsed.elements as Array<any> | undefined;
-    // Also log raw elements for debugging
-    console.log(`[parse] Raw elements: ${JSON.stringify(parsed.elements).slice(0, 1000)}`);
-    if (elements) {
-      const texts: string[] = [];
-      for (const el of elements) {
-        if (typeof el.content === 'string') {
-          texts.push(el.content);
-        } else if (Array.isArray(el)) {
-          for (const sub of el) {
-            if (sub.text) texts.push(sub.text);
-            if (sub.href) texts.push(` ${sub.href} `);
+
+  if (msgType === 'text') {
+    // Lark text body shape: { "text": "..." }
+    try { markdown = (JSON.parse(content) as { text?: string }).text ?? ''; } catch { markdown = content; }
+    if (!/PRD Ready/i.test(markdown)) {
+      console.log('[process] Skipping — text message without "PRD Ready"');
+      return;
+    }
+  } else {
+    // Card
+    try {
+      const parsed = JSON.parse(content);
+      cardTitle = parsed.title ?? parsed.header?.title?.content ?? '';
+      const elements = parsed.elements as Array<any> | undefined;
+      console.log(`[parse] Raw elements: ${JSON.stringify(parsed.elements).slice(0, 1000)}`);
+      if (elements) {
+        const texts: string[] = [];
+        for (const el of elements) {
+          if (typeof el.content === 'string') {
+            texts.push(el.content);
+          } else if (Array.isArray(el)) {
+            for (const sub of el) {
+              if (sub.text) texts.push(sub.text);
+              if (sub.href) texts.push(` ${sub.href} `);
+            }
           }
         }
+        markdown = texts.join('');
       }
-      markdown = texts.join('');
+    } catch {
+      markdown = content;
     }
-  } catch {
-    markdown = content;
-  }
 
-  console.log(`[process] Card title: "${cardTitle}", markdown: ${markdown.slice(0, 500)}`);
+    console.log(`[process] Card title: "${cardTitle}", markdown: ${markdown.slice(0, 500)}`);
 
-  if (!cardTitle.includes('PRD Ready')) {
-    console.log(`[process] Skipping — not a PRD Ready card`);
-    return;
+    if (!cardTitle.includes('PRD Ready')) {
+      console.log(`[process] Skipping — not a PRD Ready card`);
+      return;
+    }
   }
 
   const card = parseCardContent(markdown);
@@ -151,7 +161,7 @@ async function poll() {
       newCount++;
       processed.add(msg.messageId);
       console.log(`[poll] New message: ${msg.messageId}`, msg.content.slice(0, 200));
-      await processMessage(msg.messageId, msg.content);
+      await processMessage(msg.messageId, msg.content, msg.msgType);
     }
     if (newCount === 0) console.log('[poll] No new messages');
   } catch (err) {
