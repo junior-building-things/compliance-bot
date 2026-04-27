@@ -1,5 +1,5 @@
 import { getTenantToken, sendReply, reactToMessage } from './lark.js';
-import { createComplianceTicket, getExistingTicket } from './legal.js';
+import { createComplianceTicket } from './legal.js';
 import { uploadPerMeegoPackages } from './packages.js';
 
 const LARK_BASE_URL = process.env.LARK_BASE_URL ?? 'https://open.larkoffice.com';
@@ -126,18 +126,9 @@ async function processMessage(messageId: string, content: string, msgType: strin
   console.log(`[compliance] Reacting...`);
   await reactToMessage(messageId, 'OnIt').catch(e => console.error('[compliance] React failed:', e));
 
-  // Check if ticket already exists
-  console.log(`[compliance] Checking existing ticket...`);
-  const existing = await getExistingTicket(card.workItemId);
-  if (existing.ticketUrl) {
-    await sendReply(messageId, `ℹ️ Compliance ticket already exists: ${existing.ticketUrl}`);
-    await reactToMessage(messageId, 'DONE');
-    return;
-  }
-
-  console.log(`[compliance] Existing ticket check:`, JSON.stringify(existing));
-
-  // Create new ticket
+  // Always create + submit a new ticket. Stale drafts on legal.bytedance.com
+  // are common (test runs, prior manual attempts) — surfacing the existing
+  // draft would block real submissions.
   console.log(`[compliance] Creating new ticket...`);
   const result = await createComplianceTicket({
     featureName: card.featureName ?? `Feature ${card.workItemId}`,
