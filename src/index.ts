@@ -47,7 +47,7 @@ async function fetchRecentMessages(): Promise<Array<{ messageId: string; content
   }
 
   return (data.data?.items ?? [])
-    .filter(m => m.msg_type === 'interactive' || m.msg_type === 'text')
+    .filter(m => m.msg_type === 'interactive' || m.msg_type === 'text' || m.msg_type === 'post')
     .map(m => ({ messageId: m.message_id, content: m.body?.content ?? '', msgType: m.msg_type }));
 }
 
@@ -58,11 +58,29 @@ async function processMessage(messageId: string, content: string, msgType: strin
   let cardTitle = '';
   let markdown = '';
 
-  if (msgType === 'text') {
-    // Lark text body shape: { "text": "..." }
-    try { markdown = (JSON.parse(content) as { text?: string }).text ?? ''; } catch { markdown = content; }
+  if (msgType === 'text' || msgType === 'post') {
+    // text body:  { "text": "..." }
+    // post body:  { "title": "...", "content": [[{tag,text|href}, ...], ...] }
+    try {
+      const parsed = JSON.parse(content) as { text?: string; title?: string; content?: Array<Array<{ tag?: string; text?: string; href?: string }>> };
+      if (parsed.text) {
+        markdown = parsed.text;
+      } else if (Array.isArray(parsed.content)) {
+        const parts: string[] = [];
+        if (parsed.title) parts.push(parsed.title);
+        for (const line of parsed.content) {
+          for (const seg of line) {
+            if (seg.text) parts.push(seg.text);
+            if (seg.href) parts.push(seg.href);
+          }
+          parts.push('\n');
+        }
+        markdown = parts.join(' ');
+      }
+    } catch { markdown = content; }
+
     if (!/PRD Ready/i.test(markdown)) {
-      console.log('[process] Skipping — text message without "PRD Ready"');
+      console.log(`[process] Skipping — ${msgType} without "PRD Ready"`);
       return;
     }
   } else {
