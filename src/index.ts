@@ -30,6 +30,9 @@ function parseCardContent(raw: string): {
   return { featureName, priority, description, meegoUrl, prdUrl, workItemId };
 }
 
+// Mia's own app ID — skip her own messages so she doesn't react to her own replies.
+const MIA_APP_ID = process.env.LARK_APP_ID ?? '';
+
 async function fetchRecentMessages(): Promise<Array<{ messageId: string; content: string; msgType: string }>> {
   const token = await getTenantToken();
   const res = await fetch(
@@ -38,7 +41,7 @@ async function fetchRecentMessages(): Promise<Array<{ messageId: string; content
   );
   const data = (await res.json()) as {
     code: number;
-    data?: { items?: Array<{ message_id: string; msg_type: string; body?: { content?: string } }> };
+    data?: { items?: Array<{ message_id: string; msg_type: string; sender?: { id?: string; id_type?: string; sender_type?: string }; body?: { content?: string } }> };
   };
 
   if (data.code !== 0) {
@@ -48,6 +51,11 @@ async function fetchRecentMessages(): Promise<Array<{ messageId: string; content
 
   return (data.data?.items ?? [])
     .filter(m => m.msg_type === 'interactive' || m.msg_type === 'text' || m.msg_type === 'post')
+    .filter(m => {
+      // Skip Mia's own messages so she doesn't react to her own replies.
+      if (MIA_APP_ID && m.sender?.id === MIA_APP_ID) return false;
+      return true;
+    })
     .map(m => ({ messageId: m.message_id, content: m.body?.content ?? '', msgType: m.msg_type }));
 }
 
